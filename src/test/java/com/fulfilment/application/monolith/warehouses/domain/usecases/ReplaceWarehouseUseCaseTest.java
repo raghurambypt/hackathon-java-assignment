@@ -239,6 +239,118 @@ public class ReplaceWarehouseUseCaseTest {
     }
   }
 
+  // ─── Null / negative capacity and stock (Validation 3 guards) ─────────────
+
+  /** Covers null-capacity throw (line 39 of ReplaceWarehouseUseCase). */
+  @Test
+  @Transactional
+  public void testCannotReplaceWithNullCapacity() {
+    createWarehouse("NULL-CAP-001", "AMSTERDAM-001", 80, 20);
+
+    Warehouse replacement = new Warehouse();
+    replacement.businessUnitCode = "NULL-CAP-001";
+    replacement.location = "AMSTERDAM-001";
+    replacement.capacity = null;
+    replacement.stock = 10;
+
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> replaceWarehouseUseCase.replace(replacement));
+    assertTrue(ex.getMessage().contains("capacity must be a non-negative value"));
+  }
+
+  /** Covers negative-capacity throw (line 39 of ReplaceWarehouseUseCase). */
+  @Test
+  @Transactional
+  public void testCannotReplaceWithNegativeCapacity() {
+    createWarehouse("NEG-CAP-001", "AMSTERDAM-001", 80, 20);
+
+    Warehouse replacement = new Warehouse();
+    replacement.businessUnitCode = "NEG-CAP-001";
+    replacement.location = "AMSTERDAM-001";
+    replacement.capacity = -1;
+    replacement.stock = 10;
+
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> replaceWarehouseUseCase.replace(replacement));
+    assertTrue(ex.getMessage().contains("capacity must be a non-negative value"));
+  }
+
+  /** Covers null-stock throw (line 43 of ReplaceWarehouseUseCase). */
+  @Test
+  @Transactional
+  public void testCannotReplaceWithNullStock() {
+    createWarehouse("NULL-STK-001", "AMSTERDAM-001", 80, 20);
+
+    Warehouse replacement = new Warehouse();
+    replacement.businessUnitCode = "NULL-STK-001";
+    replacement.location = "AMSTERDAM-001";
+    replacement.capacity = 50;
+    replacement.stock = null;
+
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> replaceWarehouseUseCase.replace(replacement));
+    assertTrue(ex.getMessage().contains("stock must be a non-negative value"));
+  }
+
+  /** Covers negative-stock throw (line 43 of ReplaceWarehouseUseCase). */
+  @Test
+  @Transactional
+  public void testCannotReplaceWithNegativeStock() {
+    createWarehouse("NEG-STK-001", "AMSTERDAM-001", 80, 20);
+
+    Warehouse replacement = new Warehouse();
+    replacement.businessUnitCode = "NEG-STK-001";
+    replacement.location = "AMSTERDAM-001";
+    replacement.capacity = 50;
+    replacement.stock = -5;
+
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> replaceWarehouseUseCase.replace(replacement));
+    assertTrue(ex.getMessage().contains("stock must be a non-negative value"));
+  }
+
+  // ─── WarehouseRepository.getAll() ─────────────────────────────────────────
+
+  /**
+   * Covers WarehouseRepository.getAll() — excluded from coverage because IT tests
+   * aren't run.
+   */
+  @Test
+  @Transactional
+  public void testGetAllExcludesArchivedWarehouses() {
+    createWarehouse("GETALL-001", "AMSTERDAM-001", 80, 20);
+    createWarehouse("GETALL-002", "ZWOLLE-001", 30, 10);
+
+    Warehouse toArchive = warehouseRepository.findByBusinessUnitCode("GETALL-002");
+    toArchive.archivedAt = LocalDateTime.now();
+    warehouseRepository.update(toArchive);
+
+    java.util.List<Warehouse> all = warehouseRepository.getAll();
+    assertTrue(all.stream().anyMatch(w -> "GETALL-001".equals(w.businessUnitCode)));
+    assertTrue(all.stream().noneMatch(w -> "GETALL-002".equals(w.businessUnitCode)),
+        "Archived warehouse should be excluded from getAll()");
+  }
+
+  // ─── WarehouseRepository.update() null-managed-entity guard ───────────────
+
+  /**
+   * Covers WarehouseRepository.update() defensive branch: managed == null →
+   * throw.
+   */
+  @Test
+  @Transactional
+  public void testRepositoryUpdateNonExistentWarehouseThrows() {
+    Warehouse ghost = new Warehouse();
+    ghost.businessUnitCode = "DOES-NOT-EXIST";
+    ghost.location = "AMSTERDAM-001";
+    ghost.capacity = 50;
+    ghost.stock = 10;
+
+    IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        () -> warehouseRepository.update(ghost));
+    assertTrue(ex.getMessage().contains("not found for update"));
+  }
+
   // Helper methods
 
   @Transactional(TxType.REQUIRES_NEW)
